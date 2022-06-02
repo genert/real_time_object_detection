@@ -11,6 +11,20 @@ make;
 sudo make install;
 ```
 
+## Run the C++ program
+
+```bash
+git clone https://github.com/genert/real_time_object_detection
+cd real_time_object_detection
+make
+./detect
+```
+
+Or using CUDA if available:
+```bash
+./detect cuda
+```
+
 ## Exporting Yolo v5 models to .onnx format
 
 ```bash
