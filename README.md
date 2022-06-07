@@ -3,19 +3,19 @@
 ## Install dependencies
 
 ```bash
-brew install opencv
+brew install opencv cmake ffmpeg
 ```
 
 ```bash
-git clone https://github.com/nadjieb/cpp-mjpeg-streamer.git;
-cd cpp-mjpeg-streamer;
-mkdir build && cd build;
-cmake ../;
-make;
-sudo make install;
-git clone https://github.com/Taywee/args;
-cd args;
-sudo make install;
+git clone https://github.com/nadjieb/cpp-mjpeg-streamer.git
+cd cpp-mjpeg-streamer
+mkdir build && cd build
+cmake ../
+make
+sudo make install
+git clone https://github.com/Taywee/args
+cd args
+sudo make install
 ```
 
 ## Run the C++ program
@@ -24,12 +24,12 @@ sudo make install;
 git clone https://github.com/genert/real_time_object_detection
 cd real_time_object_detection
 make
-./detect
+./receiver --device_id 0
 ```
 
 Or using CUDA if available:
 ```bash
-./detect cuda
+./receiver cuda
 ```
 
 ## Exporting Yolo v5 models to .onnx format
