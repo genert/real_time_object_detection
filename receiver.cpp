@@ -1,4 +1,9 @@
 #include <fstream>
+#include <valarray>
+#include <iostream>
+#include <string>
+#include <algorithm>
+#include <csignal>
 
 #include <opencv2/opencv.hpp>
 #include <nadjieb/mjpeg_streamer.hpp>
@@ -6,8 +11,10 @@
 #include "src/detect.hpp"
 #include "src/loader.hpp"
 #include "src/h264decoder.hpp"
+#include "src/udpclient.h"
 
-#define BUFSIZE 1514
+#define DEFAULT_SERVER_PORT 8080
+#define DEFAULT_SERVER_WORKERS 1
 
 const std::vector<cv::Scalar> colors = {
         cv::Scalar(255, 255, 0),
@@ -18,11 +25,21 @@ const std::vector<cv::Scalar> colors = {
 
 using MJPEGStreamer = nadjieb::MJPEGStreamer;
 
+namespace {
+    std::function<void(int)> shutdown_handler;
+
+    void signal_handler(int signal) { shutdown_handler(signal); }
+} // namespace
+
+
 int
 protected_main(int argc, char **argv) {
     args::ArgumentParser parser("Real time object detection");
     args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
     args::ValueFlag<int> port(parser, "port", "The port of the server", {'p', "port"});
+    args::ValueFlag<int> workers(parser, "workers", "The workers count for streaming server", {"w", "workers"});
+    args::Flag enableDetection(parser, "Enable detection", "Enable Yolo v5 model object detection",
+                               {"d", "enable_detection"});
     args::Flag cuda(parser, "cuda", "Enable cuda", {'c', "cuda"});
     args::ValueFlag<int> device_id(parser, "device ID", "Use device ID for video stream", {"d", "device_id"});
     args::ValueFlag<int> udpPort(parser, "port", "The port of UDP streaming server", {'p', "port"});
@@ -42,12 +59,13 @@ protected_main(int argc, char **argv) {
         return 1;
     }
 
+    // Load model
     cv::dnn::Net net;
     load_net(net, cuda);
-
     std::vector<std::string> class_list = load_class_list();
     cv::Mat frame;
 
+    // Load camera capture if specified.
     cv::VideoCapture cap;
     if (device_id) {
         cap.open(args::get(device_id));
@@ -64,47 +82,65 @@ protected_main(int argc, char **argv) {
     std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 90};
 
     MJPEGStreamer streamer;
-
     H264Decoder decoder;
 
-    // By default "/shutdown" is the target to graceful shutdown the streamer
-    // if you want to change the target to graceful shutdown:
-    //      streamer.setShutdownTarget("/stop");
+    struct sockaddr_in myaddr;      /* our address */
+    struct sockaddr_in remaddr;     /* remote address */
+    socklen_t addrlen = sizeof(remaddr);            /* length of addresses */
 
-    // By default 1 worker is used for streaming
-    // if you want to use 4 workers:
-    //      streamer.start(8080, 4);
-    if (port) {
-        streamer.start(args::get(port));
-    } else {
-        streamer.start(8080);
+    int fd;                         /* our socket */
+    if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        perror("cannot create socket\n");
+        return 0;
     }
 
-    unsigned char buf[BUFSIZE];
-    int recvlen;
+    const char enable[1] = {1};
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, enable, sizeof(int)) < 0) {
+        throw std::runtime_error("setsockopt(SO_REUSEADDR) failed");
+    }
+
+    memset((char *) &myaddr, 0, sizeof(myaddr));
+    myaddr.sin_family = AF_INET;
+    myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    myaddr.sin_port = htons(25565);
+
+    if (bind(fd, (struct sockaddr *) &myaddr, sizeof(myaddr)) < 0) {
+        throw std::runtime_error("bind failed");
+    }
+
+    streamer.start(port ? args::get(port) : DEFAULT_SERVER_PORT, workers ? args::get(workers) : DEFAULT_SERVER_WORKERS);
+    std::array<char, MAX_SIZE> recvbuf{};
+    std::signal(SIGINT, signal_handler);
 
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
+        recvfrom(fd, recvbuf.data(), recvbuf.size() - 1, 0, (struct sockaddr *) &remaddr, &addrlen);
+        std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
+        std::cout << "Received data " << recvbuf.size() << std::endl;
+
         cap >> frame;
         frame_count++;
 
-        std::vector<Detection> output;
-        detect(frame, net, output, class_list);
-        int detections = output.size();
+        if (enableDetection) {
+            std::vector<Detection> output;
+            detect(frame, net, output, class_list);
+            int detections = output.size();
 
-        for (int i = 0; i < detections; ++i) {
-            auto detection = output[i];
-            auto box = detection.box;
-            auto classId = detection.class_id;
-            const auto color = colors[classId % colors.size()];
-            std::stringstream label;
-            label << class_list[classId] << " " << std::fixed << std::setprecision(2) << detection.confidence * 100
-                  << "%";
+            for (int i = 0; i < detections; ++i) {
+                auto detection = output[i];
+                auto box = detection.box;
+                auto classId = detection.class_id;
+                const auto color = colors[classId % colors.size()];
+                std::stringstream label;
+                label << class_list[classId] << " " << std::fixed << std::setprecision(2) << detection.confidence * 100
+                      << "%";
 
-            cv::rectangle(frame, box, color, 3);
-            cv::rectangle(frame, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color, cv::FILLED);
-            cv::putText(frame, label.str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5,
-                        cv::Scalar(0, 0, 0));
+                cv::rectangle(frame, box, color, 3);
+                cv::rectangle(frame, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color,
+                              cv::FILLED);
+                cv::putText(frame, label.str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5,
+                            cv::Scalar(0, 0, 0));
+            }
         }
 
         if (frame_count >= 30) {
@@ -126,11 +162,14 @@ protected_main(int argc, char **argv) {
         std::vector<uchar> buff_bgr;
         cv::imencode(".jpg", frame, buff_bgr, params);
         streamer.publish("/stream.mjpg", std::string(buff_bgr.begin(), buff_bgr.end()));
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    streamer.stop();
-    cap.release();
+    shutdown_handler = [&](int signum) {
+        std::cout << "Exiting..." << std::endl;
+        close(fd);
+        exit(signum);
+    };
 
     return 0;
 }
