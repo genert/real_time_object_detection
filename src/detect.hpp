@@ -23,12 +23,14 @@ cv::Mat format_yolov5(const cv::Mat &source) {
     return result;
 }
 
-void detect(cv::Mat &image, cv::dnn::Net &net, std::vector<Detection> &output, const std::vector<std::string> &className) {
+void
+detect(cv::Mat &image, cv::dnn::Net &net, std::vector<Detection> &output, const std::vector<std::string> &className) {
     cv::Mat blob;
 
     auto input_image = format_yolov5(image);
 
-    cv::dnn::blobFromImage(input_image, blob, 1./255., cv::Size(INPUT_WIDTH, INPUT_HEIGHT), cv::Scalar(), true, false);
+    cv::dnn::blobFromImage(input_image, blob, 1. / 255., cv::Size(INPUT_WIDTH, INPUT_HEIGHT), cv::Scalar(), true,
+                           false);
     net.setInput(blob);
     std::vector<cv::Mat> outputs;
     net.forward(outputs, net.getUnconnectedOutLayersNames());
@@ -36,9 +38,8 @@ void detect(cv::Mat &image, cv::dnn::Net &net, std::vector<Detection> &output, c
     float x_factor = input_image.cols / INPUT_WIDTH;
     float y_factor = input_image.rows / INPUT_HEIGHT;
 
-    float *data = (float *)outputs[0].data;
+    float *data = (float *) outputs[0].data;
 
-    const int dimensions = 85;
     const int rows = 25200;
 
     std::vector<int> class_ids;
@@ -48,29 +49,31 @@ void detect(cv::Mat &image, cv::dnn::Net &net, std::vector<Detection> &output, c
     for (int i = 0; i < rows; ++i) {
         float confidence = data[4];
 
-        if (confidence >= CONFIDENCE_THRESHOLD) {
-            float * classes_scores = data + 5;
-            cv::Mat scores(1, className.size(), CV_32FC1, classes_scores);
-            cv::Point class_id;
-            double max_class_score;
-            minMaxLoc(scores, 0, &max_class_score, 0, &class_id);
-            if (max_class_score > SCORE_THRESHOLD) {
-                confidences.push_back(confidence);
-                class_ids.push_back(class_id.x);
-
-                float x = data[0];
-                float y = data[1];
-                float w = data[2];
-                float h = data[3];
-                int left = int((x - 0.5 * w) * x_factor);
-                int top = int((y - 0.5 * h) * y_factor);
-                int width = int(w * x_factor);
-                int height = int(h * y_factor);
-                boxes.push_back(cv::Rect(left, top, width, height));
-            }
+        if (confidence < CONFIDENCE_THRESHOLD) {
+            data += 85;
+            continue;
         }
 
-        data += 85;
+        float *classes_scores = data + 5;
+        cv::Mat scores(1, className.size(), CV_32FC1, classes_scores);
+        cv::Point class_id;
+        double max_class_score;
+        minMaxLoc(scores, 0, &max_class_score, 0, &class_id);
+
+        if (max_class_score > SCORE_THRESHOLD) {
+            confidences.push_back(confidence);
+            class_ids.push_back(class_id.x);
+
+            float x = data[0];
+            float y = data[1];
+            float w = data[2];
+            float h = data[3];
+            int left = int((x - 0.5 * w) * x_factor);
+            int top = int((y - 0.5 * h) * y_factor);
+            int width = int(w * x_factor);
+            int height = int(h * y_factor);
+            boxes.push_back(cv::Rect(left, top, width, height));
+        }
     }
 
     std::vector<int> nms_result;

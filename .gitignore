@@ -34,4 +34,8 @@
 # Misc
 .idea
 /CMakeFiles
-/detect
+/receiver
+*.cbp
+testing
+.cmake
+cmake-build-debug
