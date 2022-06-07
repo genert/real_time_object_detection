@@ -3,11 +3,18 @@
 ## Install dependencies
 
 ```bash
+brew install opencv
+```
+
+```bash
 git clone https://github.com/nadjieb/cpp-mjpeg-streamer.git;
 cd cpp-mjpeg-streamer;
 mkdir build && cd build;
 cmake ../;
 make;
+sudo make install;
+git clone https://github.com/Taywee/args;
+cd args;
 sudo make install;
 ```
 
