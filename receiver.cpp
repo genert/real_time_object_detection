@@ -42,35 +42,6 @@ protected_main(int argc, char **argv) {
         return 1;
     }
 
-
-
-    struct sockaddr_in myaddr;      /* our address */
-    struct sockaddr_in remaddr;     /* remote address */
-    socklen_t addrlen = sizeof(remaddr);            /* length of addresses */
-
-    int fd;                         /* our socket */
-
-
-    if (!device_id && port) {
-        /* create a UDP socket */
-        if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-            perror("cannot create socket\n");
-            return 0;
-        }
-
-        std::cout << "Running the port" << std::endl;
-
-        memset((char *) &myaddr, 0, sizeof(myaddr));
-        myaddr.sin_family = AF_INET;
-        myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-        myaddr.sin_port = htons(args::get(udpPort));
-
-        if (bind(fd, (struct sockaddr *) &myaddr, sizeof(myaddr)) < 0) {
-            perror("bind failed");
-            return 0;
-        }
-    }
-
     cv::dnn::Net net;
     load_net(net, cuda);
 
@@ -114,17 +85,7 @@ protected_main(int argc, char **argv) {
 
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
-        if (!device_id && port) {
-            recvlen = recvfrom(fd, buf, BUFSIZE, 0, (struct sockaddr *) &remaddr, &addrlen);
-            printf("received %d bytes\n", recvlen);
-
-            //decoder.parse(buf, recvlen);
-
-            continue;
-        } else if (device_id) {
-            cap >> frame;
-        }
-
+        cap >> frame;
         frame_count++;
 
         std::vector<Detection> output;
