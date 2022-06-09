@@ -114,7 +114,7 @@ protected_main(int argc, char **argv) {
     std::cout << "Read to accept frames" << std::endl;
 
     u32 height, width;
-    u8* img_data;
+    u8 *img_data;
 
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
@@ -146,7 +146,9 @@ protected_main(int argc, char **argv) {
             break;
         }
 
-        cv::Mat img_buffer(height+height/2, width, CV_8UC1, (uchar *)img_data);
+        cv::Mat img_buffer(height + height / 2, width, CV_8UC1, (uchar *) img_data);
+        cv::cvtColor(img_buffer, frame, cv::COLOR_YUV2RGB_YV12);
+
         frame_count++;
 
         if (enableDetection) {
