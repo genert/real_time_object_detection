@@ -120,8 +120,10 @@ protected_main(int argc, char **argv) {
     while (streamer.isRunning()) {
         recvfrom(fd, recvbuf.data(), recvbuf.size() - 1, 0, (struct sockaddr *) &remote_address, &remote_address_len);
         std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
+        s.SetStream(recvbuf.data(), recvbuf.size());
 
         StreamStatus ret = s.BroadwayDecode();
+        std::cout << "Received decode status" << std::endl;
         switch (ret) {
             case PIC_READY:
                 img_data = s.GetFrame(&width, &height);
