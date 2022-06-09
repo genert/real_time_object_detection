@@ -191,6 +191,8 @@ protected_main(int argc, char **argv) {
                         cv::Scalar(0, 0, 255), 2);
         }
 
+        cv::imshow("Car", frame);
+
         std::vector<uchar> buff_bgr;
         cv::imencode(".jpg", frame, buff_bgr, params);
         streamer.publish("/stream.mjpg", std::string(buff_bgr.begin(), buff_bgr.end()));
