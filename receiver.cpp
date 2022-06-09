@@ -118,12 +118,18 @@ protected_main(int argc, char **argv) {
 
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
-        recvfrom(fd, recvbuf.data(), recvbuf.size() - 1, 0, (struct sockaddr *) &remote_address, &remote_address_len);
-        std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
-        s.SetStream(recvbuf.data(), recvbuf.size());
+        u8 *byteStrmStart;
+        byteStrmStart = new u8[MAX_SIZE];
+        recvfrom(fd, byteStrmStart, sizeof(u8), 0, (struct sockaddr *) &remote_address, &remote_address_len);
+        s.SetStream(byteStrmStart, MAX_SIZE);
+
+
+
+        // std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
+        //s.UpdateStream(recvbuf.data(), recvbuf.size());
 
         StreamStatus ret = s.BroadwayDecode();
-        std::cout << "Received decode status" << std::endl;
+        std::cout << "Received decode status" << ret << std::endl;
         switch (ret) {
             case PIC_READY:
                 img_data = s.GetFrame(&width, &height);
