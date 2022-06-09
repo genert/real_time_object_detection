@@ -102,15 +102,11 @@ protected_main(int argc, char **argv) {
     std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 90};
 
     MJPEGStreamer streamer;
+    Stream s;
 
+    std::cout << "Starting MJPEG streamer" << std::endl;
     streamer.start(port ? args::get(port) : DEFAULT_SERVER_PORT, workers ? args::get(workers) : DEFAULT_SERVER_WORKERS);
     std::array<uint8_t, MAX_SIZE> recvbuf{};
-
-    recvfrom(fd, recvbuf.data(), recvbuf.size() - 1, 0, (struct sockaddr *) &remote_address, &remote_address_len);
-    std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
-    std::cout << "Received data " << recvbuf.size() << std::endl;
-
-    Stream s;
 
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
