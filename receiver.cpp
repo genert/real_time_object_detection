@@ -122,10 +122,9 @@ protected_main(int argc, char **argv) {
         byteStrmStart = new u8[MAX_SIZE];
         recvfrom(fd, byteStrmStart, sizeof(u8), 0, (struct sockaddr *) &remote_address, &remote_address_len);
         s.SetStream(byteStrmStart, MAX_SIZE);
+        s.UpdateStream(byteStrmStart, MAX_SIZE);
 
-
-
-        // std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
+        // std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbufend());
         //s.UpdateStream(recvbuf.data(), recvbuf.size());
 
         StreamStatus ret = s.BroadwayDecode();
