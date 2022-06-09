@@ -106,7 +106,8 @@ protected_main(int argc, char **argv) {
 
     std::cout << "Starting MJPEG streamer" << std::endl;
     streamer.start(port ? args::get(port) : DEFAULT_SERVER_PORT, workers ? args::get(workers) : DEFAULT_SERVER_WORKERS);
-    std::cout << "MJPEG streamer is available at http://localhost:" <<  port ? args::get(port) : DEFAULT_SERVER_PORT << std::endl;
+    std::cout << "MJPEG streamer is available at http://localhost:" << (port ? args::get(port) : DEFAULT_SERVER_PORT)
+              << std::endl;
 
     std::array<uint8_t, MAX_SIZE> recvbuf{};
 
