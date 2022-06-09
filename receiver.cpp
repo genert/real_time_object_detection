@@ -109,23 +109,28 @@ protected_main(int argc, char **argv) {
     std::cout << "MJPEG streamer is available at http://localhost:" << (port ? args::get(port) : DEFAULT_SERVER_PORT)
               << std::endl;
 
-    std::array<uint8_t, MAX_SIZE> recvbuf{};
+
 
     std::cout << "Read to accept frames" << std::endl;
 
     u32 height, width;
     u8 *img_data;
 
+    auto index = 0;
+
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
-        u8 *byteStrmStart;
-        byteStrmStart = new u8[MAX_SIZE];
-        recvfrom(fd, byteStrmStart, sizeof(u8), 0, (struct sockaddr *) &remote_address, &remote_address_len);
-        s.SetStream(byteStrmStart, MAX_SIZE);
-        s.UpdateStream(byteStrmStart, MAX_SIZE);
+        std::array<uint8_t, MAX_SIZE> recvbuf{};
 
-        // std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbufend());
-        //s.UpdateStream(recvbuf.data(), recvbuf.size());
+        recvfrom(fd, recvbuf.data(), recvbuf.size() - 1, 0, (struct sockaddr *) &remote_address, &remote_address_len);
+        std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
+
+        if (index == 0) {
+            s.SetStream(recvbuf.data(), recvbuf.size());
+        } else {
+            s.UpdateStream(recvbuf.data(), recvbuf.size());
+            index = 0;
+        }
 
         StreamStatus ret = s.BroadwayDecode();
         std::cout << "Received decode status" << ret << std::endl;
