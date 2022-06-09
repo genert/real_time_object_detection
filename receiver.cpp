@@ -111,12 +111,40 @@ protected_main(int argc, char **argv) {
 
     std::array<uint8_t, MAX_SIZE> recvbuf{};
 
+    std::cout << "Read to accept frames" << std::endl;
+
+    u32 height, width;
+    u8* img_data;
+
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
         recvfrom(fd, recvbuf.data(), recvbuf.size() - 1, 0, (struct sockaddr *) &remote_address, &remote_address_len);
         std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
-        std::cout << "Received data " << recvbuf.size() << std::endl;
-        cap >> frame;
+
+        StreamStatus ret = s.BroadwayDecode();
+        switch (ret) {
+            case PIC_READY:
+                img_data = s.GetFrame(&width, &height);
+                break;
+
+            case STREAM_ERROR:
+            case STREAM_ENDED:
+                break;
+
+            default:
+                break;
+        }
+
+        if (ret != PIC_READY) {
+            continue;
+        }
+
+        if (img_data == NULL) {
+            std::cout << "Image data is NULL" << std::endl;
+            break;
+        }
+
+        cv::Mat img_buffer(height+height/2, width, CV_8UC1, (uchar *)img_data);
         frame_count++;
 
         if (enableDetection) {
