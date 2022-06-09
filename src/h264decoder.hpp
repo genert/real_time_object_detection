@@ -52,6 +52,10 @@ public:
     ~H264Decoder();
 
     ssize_t parse(const ubyte* in_data, ssize_t in_size);
+
+    bool is_frame_available();
+
+    const AVFrame& decode_frame();
 };
 
 

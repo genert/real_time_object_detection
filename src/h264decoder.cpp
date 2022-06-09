@@ -43,10 +43,21 @@ H264Decoder::~H264Decoder() {
 #endif
 }
 
-ssize_t H264Decoder::parse(const ubyte* in_data, ssize_t in_size) {
+ssize_t H264Decoder::parse(const ubyte *in_data, ssize_t in_size) {
     auto nread = av_parser_parse2(parser, context, &pkt->data, &pkt->size,
                                   in_data, in_size,
                                   0, 0, AV_NOPTS_VALUE);
     return nread;
 }
 
+bool H264Decoder::is_frame_available() {
+    return pkt->size > 0;
+}
+
+const AVFrame &H264Decoder::decode_frame() {
+    int got_picture = 0;
+    int nread = avcodec_decode_video2(context, frame, &got_picture, pkt);
+    if (nread < 0 || got_picture == 0)
+        throw H264DecodeFailure("error decoding frame\n");
+    return *frame;
+}

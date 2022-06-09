@@ -23,6 +23,9 @@ sudo make install
 ```bash
 git clone https://github.com/genert/real_time_object_detection
 cd real_time_object_detection
+mkdir build
+cd build
+cmake ..
 make
 ./receiver --device_id 0
 open http://localhost:8080/stream.mjpg

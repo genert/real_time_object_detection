@@ -1,9 +1,7 @@
 #include <fstream>
 #include <valarray>
 #include <iostream>
-#include <string>
 #include <algorithm>
-#include <csignal>
 
 #include <opencv2/opencv.hpp>
 #include <nadjieb/mjpeg_streamer.hpp>
@@ -11,10 +9,11 @@
 #include "src/detect.hpp"
 #include "src/loader.hpp"
 #include "src/h264decoder.hpp"
-#include "src/udpclient.h"
+#include "src/Decoder.h"
 
 #define DEFAULT_SERVER_PORT 8080
 #define DEFAULT_SERVER_WORKERS 1
+#define MAX_SIZE 1514
 
 const std::vector<cv::Scalar> colors = {
         cv::Scalar(255, 255, 0),
@@ -24,13 +23,6 @@ const std::vector<cv::Scalar> colors = {
 };
 
 using MJPEGStreamer = nadjieb::MJPEGStreamer;
-
-namespace {
-    std::function<void(int)> shutdown_handler;
-
-    void signal_handler(int signal) { shutdown_handler(signal); }
-} // namespace
-
 
 int
 protected_main(int argc, char **argv) {
@@ -42,7 +34,7 @@ protected_main(int argc, char **argv) {
                                {"d", "enable_detection"});
     args::Flag cuda(parser, "cuda", "Enable cuda", {'c', "cuda"});
     args::ValueFlag<int> device_id(parser, "device ID", "Use device ID for video stream", {"d", "device_id"});
-    args::ValueFlag<int> udpPort(parser, "port", "The port of UDP streaming server", {'p', "port"});
+    args::ValueFlag<int> udpPort(parser, "port", "The port of UDP streaming server", {"up", "udp_port"});
 
     try {
         parser.ParseCLI(argc, argv);
@@ -57,6 +49,34 @@ protected_main(int argc, char **argv) {
         std::cerr << e.what() << std::endl;
         std::cerr << parser;
         return 1;
+    }
+
+    // Create UDP listener
+    struct sockaddr_in our_address;
+    struct sockaddr_in remote_address;
+    socklen_t remote_address_len = sizeof(remote_address);
+    int fd;
+
+    if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        throw std::runtime_error("socket creation failed");
+    }
+
+    int reuse = 1;
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse, sizeof(reuse)) < 0)
+        perror("setsockopt(SO_REUSEADDR) failed");
+
+#ifdef SO_REUSEPORT
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (const char *) &reuse, sizeof(reuse)) < 0)
+        perror("setsockopt(SO_REUSEPORT) failed");
+#endif
+
+    memset((char *) &our_address, 0, sizeof(our_address));
+    our_address.sin_family = AF_INET;
+    our_address.sin_addr.s_addr = htonl(INADDR_ANY);
+    our_address.sin_port = htons(udpPort ? args::get(udpPort) : 0);
+
+    if (bind(fd, (struct sockaddr *) &our_address, sizeof(our_address)) < 0) {
+        throw std::runtime_error("bind failed");
     }
 
     // Load model
@@ -82,42 +102,21 @@ protected_main(int argc, char **argv) {
     std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 90};
 
     MJPEGStreamer streamer;
-    H264Decoder decoder;
-
-    struct sockaddr_in myaddr;      /* our address */
-    struct sockaddr_in remaddr;     /* remote address */
-    socklen_t addrlen = sizeof(remaddr);            /* length of addresses */
-
-    int fd;                         /* our socket */
-    if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        perror("cannot create socket\n");
-        return 0;
-    }
-
-    const char enable[1] = {1};
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, enable, sizeof(int)) < 0) {
-        throw std::runtime_error("setsockopt(SO_REUSEADDR) failed");
-    }
-
-    memset((char *) &myaddr, 0, sizeof(myaddr));
-    myaddr.sin_family = AF_INET;
-    myaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    myaddr.sin_port = htons(25565);
-
-    if (bind(fd, (struct sockaddr *) &myaddr, sizeof(myaddr)) < 0) {
-        throw std::runtime_error("bind failed");
-    }
 
     streamer.start(port ? args::get(port) : DEFAULT_SERVER_PORT, workers ? args::get(workers) : DEFAULT_SERVER_WORKERS);
-    std::array<char, MAX_SIZE> recvbuf{};
-    std::signal(SIGINT, signal_handler);
+    std::array<uint8_t, MAX_SIZE> recvbuf{};
+
+    recvfrom(fd, recvbuf.data(), recvbuf.size() - 1, 0, (struct sockaddr *) &remote_address, &remote_address_len);
+    std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
+    std::cout << "Received data " << recvbuf.size() << std::endl;
+
+    Stream s;
 
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
-        recvfrom(fd, recvbuf.data(), recvbuf.size() - 1, 0, (struct sockaddr *) &remaddr, &addrlen);
+        recvfrom(fd, recvbuf.data(), recvbuf.size() - 1, 0, (struct sockaddr *) &remote_address, &remote_address_len);
         std::rotate(recvbuf.begin(), recvbuf.begin() + 72, recvbuf.end());
         std::cout << "Received data " << recvbuf.size() << std::endl;
-
         cap >> frame;
         frame_count++;
 
@@ -131,6 +130,8 @@ protected_main(int argc, char **argv) {
                 auto box = detection.box;
                 auto classId = detection.class_id;
                 const auto color = colors[classId % colors.size()];
+
+                // Object label
                 std::stringstream label;
                 label << class_list[classId] << " " << std::fixed << std::setprecision(2) << detection.confidence * 100
                       << "%";
@@ -165,11 +166,11 @@ protected_main(int argc, char **argv) {
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
-    shutdown_handler = [&](int signum) {
-        std::cout << "Exiting..." << std::endl;
-        close(fd);
-        exit(signum);
-    };
+    std::cout << "Exiting..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+    streamer.stop();
+    cap.release();
+    close(fd);
 
     return 0;
 }
