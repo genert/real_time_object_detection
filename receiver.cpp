@@ -1,137 +1,144 @@
-#include "src/Streamer.hpp"
-#include "src/Decoder.hpp"
+#include "src/Loader.hpp"
+#include "src/Detect.hpp"
 
 #include <string>
 #include <opencv2/opencv.hpp>
+#include <nadjieb/mjpeg_streamer.hpp>
 #include <cstdio>
 #include <chrono>
-#import <sys/socket.h>
-#import <netinet/in.h>
+#include <args.hxx>
 
-using namespace streamer;
+#define DEFAULT_SERVER_PORT 8080
+#define DEFAULT_SERVER_WORKERS 1
+
+using MJPEGStreamer = nadjieb::MJPEGStreamer;
+const std::vector<cv::Scalar> colors = {
+        cv::Scalar(255, 255, 0),
+        cv::Scalar(0, 255, 0),
+        cv::Scalar(0, 255, 255),
+        cv::Scalar(255, 0, 0),
+};
 
 using time_point = std::chrono::high_resolution_clock::time_point;
 using high_resolution_clock = std::chrono::high_resolution_clock;
 
-void process_frame(const cv::Mat &in, cv::Mat &out) {
-    in.copyTo(out);
-}
+int
+protected_main(int argc, char **argv) {
+    args::ArgumentParser parser("Real time object detection");
+    args::HelpFlag help(parser, "help", "Display this help menu", {'h', "help"});
+    args::ValueFlag<int> port(parser, "port", "The port of the server", {'p', "port"});
+    args::Flag enableDetection(parser, "Enable detection", "Enable Yolo v5 model object detection",
+                               {"d", "enable_detection"});
+    args::Flag cuda(parser, "cuda", "Enable cuda", {'c', "cuda"});
+    args::ValueFlag<int> device_id(parser, "Device ID", "Use device ID for video stream", {"d", "device_id"});
 
-
-void stream_frame(Streamer &streamer, const cv::Mat &image) {
-    streamer.stream_frame(image.data);
-}
-
-
-void stream_frame(Streamer &streamer, const cv::Mat &image, int64_t frame_duration) {
-    streamer.stream_frame(image.data, frame_duration);
-}
-
-int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        printf("must provide one command argument with the video file or stream to open\n");
+    try {
+        parser.ParseCLI(argc, argv);
+    } catch (args::Help) {
+        std::cout << parser;
+        return 0;
+    } catch (args::ParseError e) {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
+        return 1;
+    } catch (args::ValidationError e) {
+        std::cerr << e.what() << std::endl;
+        std::cerr << parser;
         return 1;
     }
 
-    // Create UDP listener
-    struct sockaddr_in our_address;
-    int fd;
-
-    if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        throw std::runtime_error("socket creation failed");
-    }
-
-    int reuse = 1;
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (const char *) &reuse, sizeof(reuse)) < 0)
-        perror("setsockopt(SO_REUSEADDR) failed");
-
-#ifdef SO_REUSEPORT
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, (const char *) &reuse, sizeof(reuse)) < 0)
-        perror("setsockopt(SO_REUSEPORT) failed");
-#endif
-
-    memset((char *) &our_address, 0, sizeof(our_address));
-    our_address.sin_family = AF_INET;
-    our_address.sin_addr.s_addr = htonl(INADDR_ANY);
-    our_address.sin_port = htons(25565);
-
-    if (bind(fd, (struct sockaddr *) &our_address, sizeof(our_address)) < 0) {
-        throw std::runtime_error("bind failed");
-    }
-
-    std::string video_fname;
-    video_fname = std::string(argv[1]);
-    cv::VideoCapture video_capture;
-
-    video_capture = cv::VideoCapture(0);
-
+    auto video_capture = cv::VideoCapture(device_id ? args::get(device_id) : 0);
     if (!video_capture.isOpened()) {
-        fprintf(stderr, "could not open video %s\n", video_fname.c_str());
+        fprintf(stderr, "could not open video %d\n", device_id ? args::get(device_id) : 0);
         video_capture.release();
         return 1;
     }
 
-    int cap_frame_width = video_capture.get(cv::CAP_PROP_FRAME_WIDTH);
-    int cap_frame_height = video_capture.get(cv::CAP_PROP_FRAME_HEIGHT);
+    // Load model
+    cv::dnn::Net net;
+    load_net(net, cuda);
+    std::vector<std::string> class_list = load_class_list();
+    cv::Mat frame;
+    MJPEGStreamer streamer;
+    auto start = std::chrono::high_resolution_clock::now();
+    int frame_count = 0;
+    float fps = -1;
+    std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 90};
 
-    int cap_fps = video_capture.get(cv::CAP_PROP_FPS);
-    printf("video info w = %d, h = %d, fps = %d\n", cap_frame_width, cap_frame_height, cap_fps);
+    std::cout << "Starting MJPEG streamer" << std::endl;
+    streamer.start(port ? args::get(port) : DEFAULT_SERVER_PORT, DEFAULT_SERVER_WORKERS);
 
-    int stream_fps = cap_fps;
+    // Visit /shutdown or another defined target to stop the loop and graceful shutdown
+    while (streamer.isRunning()) {
+        video_capture >> frame;
+        frame_count++;
 
-    int bitrate = 500000;
-    Streamer streamer;
-    StreamerConfig streamer_config(cap_frame_width, cap_frame_height,
-                                   640, 480,
-                                   stream_fps, bitrate, "main", "rtmp://localhost/live/mystream");
+        if (enableDetection) {
+            std::vector<Detection> output;
+            detect(frame, net, output, class_list);
+            int detections = output.size();
 
-    streamer.enable_av_debug_log();
+            for (int i = 0; i < detections; ++i) {
+                auto detection = output[i];
+                auto box = detection.box;
+                auto classId = detection.class_id;
+                const auto color = colors[classId % colors.size()];
 
-    streamer.init(streamer_config);
+                // Object label
+                std::stringstream label;
+                label << class_list[classId] << " " << std::fixed << std::setprecision(2) << detection.confidence * 100
+                      << "%";
 
-    high_resolution_clock clk;
-    time_point time_start = clk.now();
-    time_point time_prev = time_start;
-
-    cv::Mat read_frame;
-    cv::Mat proc_frame;
-    bool ok = video_capture.read(read_frame);
-
-    time_point time_stop = clk.now();
-    auto elapsed_time = std::chrono::duration_cast<std::chrono::duration<double>>(time_stop - time_start);
-    auto frame_time = std::chrono::duration_cast<std::chrono::duration<double>>(time_stop - time_prev);
-
-    Decoder decoder;
-
-    std::cout << "Read to accept frames" << std::endl;
-
-    /**
-     * Listen for the result of remote procedure call
-     */
-    int buffer_size = 1514;
-    struct sockaddr_in remote_address;
-    socklen_t addrlen = sizeof(remote_address);
-
-    unsigned char receive_buffer[buffer_size];
-    while (ok) {
-        int receive_length = recvfrom(fd, (void *) receive_buffer, buffer_size,
-                                      0, (struct sockaddr *) &remote_address, &addrlen);
-        if (receive_length > 0) {
-            decoder.H264_2_RGB(receive_buffer, buffer_size);
+                cv::rectangle(frame, box, color, 3);
+                cv::rectangle(frame, cv::Point(box.x, box.y - 20), cv::Point(box.x + box.width, box.y), color,
+                              cv::FILLED);
+                cv::putText(frame, label.str(), cv::Point(box.x, box.y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.5,
+                            cv::Scalar(0, 0, 0));
+            }
         }
 
-        process_frame(read_frame, proc_frame);
-        stream_frame(streamer, proc_frame, frame_time.count() * streamer.inv_stream_timebase);
+        if (frame_count >= 30) {
+            auto end = std::chrono::high_resolution_clock::now();
+            fps = frame_count * 1000.0 / std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+            frame_count = 0;
+            start = std::chrono::high_resolution_clock::now();
+        }
 
-        time_stop = clk.now();
-        elapsed_time = std::chrono::duration_cast<std::chrono::duration<double>>(time_stop - time_start);
-        frame_time = std::chrono::duration_cast<std::chrono::duration<double>>(time_stop - time_prev);
+        if (fps > 0) {
+            std::ostringstream fps_label;
+            fps_label << std::fixed << std::setprecision(2);
+            fps_label << "FPS: " << fps;
+            std::string fps_label_str = fps_label.str();
+            cv::putText(frame, fps_label_str.c_str(), cv::Point(10, 25), cv::FONT_HERSHEY_SIMPLEX, 1,
+                        cv::Scalar(0, 0, 255), 2);
+        }
 
-        ok = video_capture.read(read_frame);
-        time_prev = time_stop;
+        std::vector<uchar> buff_bgr;
+        cv::imencode(".jpg", frame, buff_bgr, params);
+        streamer.publish("/stream.mjpg", std::string(buff_bgr.begin(), buff_bgr.end()));
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
+    std::cout << "Exiting..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(3000));
+    streamer.stop();
     video_capture.release();
 
     return 0;
+}
+
+int
+main(int argc, char **argv) {
+    try {
+        return protected_main(argc, argv);
+    }
+    catch (const std::exception &e) {
+        std::cerr << "Caught unhandled exception:\n";
+        std::cerr << " - what(): " << e.what() << '\n';
+    }
+    catch (...) {
+        std::cerr << "Caught unknown exception\n";
+    }
+
+    return EXIT_FAILURE;
 }

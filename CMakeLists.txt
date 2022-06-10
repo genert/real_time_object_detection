@@ -10,15 +10,13 @@ include_directories("src/"
         "src/inc/")
 
 file(GLOB real_time_object_detection_src
-    "src/Loader.hpp"
-    "src/Detect.hpp"
-    "src/Streamer.hpp"
-    "src/Streamer.cpp"
-    "src/Queue.hpp"
-    "src/Decoder.cpp"
-    "src/Decoder.hpp"
-    "receiver.cpp"
-)
+        "src/Loader.hpp"
+        "src/Detect.hpp"
+        "src/Streamer.hpp"
+        "src/Streamer.cpp"
+        "src/Queue.hpp"
+        "receiver.cpp"
+        )
 add_executable(receiver ${real_time_object_detection_src})
 
 find_path(AVCODEC_INCLUDE_DIR libavcodec/avcodec.h)

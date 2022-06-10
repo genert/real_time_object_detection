@@ -47,6 +47,9 @@ open http://localhost:8080/stream.mjpg
 Or using CUDA if available:
 ```bash
 ./receiver cuda
+
+
+  
 ```
 
 ## Exporting Yolo v5 models to .onnx format

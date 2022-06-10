@@ -153,30 +153,6 @@ receiver.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/receiver.dir/build.make CMakeFiles/receiver.dir/receiver.cpp.s
 .PHONY : receiver.cpp.s
 
-src/Decoder.o: src/Decoder.cpp.o
-.PHONY : src/Decoder.o
-
-# target to build an object file
-src/Decoder.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/receiver.dir/build.make CMakeFiles/receiver.dir/src/Decoder.cpp.o
-.PHONY : src/Decoder.cpp.o
-
-src/Decoder.i: src/Decoder.cpp.i
-.PHONY : src/Decoder.i
-
-# target to preprocess a source file
-src/Decoder.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/receiver.dir/build.make CMakeFiles/receiver.dir/src/Decoder.cpp.i
-.PHONY : src/Decoder.cpp.i
-
-src/Decoder.s: src/Decoder.cpp.s
-.PHONY : src/Decoder.s
-
-# target to generate assembly for a file
-src/Decoder.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/receiver.dir/build.make CMakeFiles/receiver.dir/src/Decoder.cpp.s
-.PHONY : src/Decoder.cpp.s
-
 src/Streamer.o: src/Streamer.cpp.o
 .PHONY : src/Streamer.o
 
@@ -213,9 +189,6 @@ help:
 	@echo "... receiver.o"
 	@echo "... receiver.i"
 	@echo "... receiver.s"
-	@echo "... src/Decoder.o"
-	@echo "... src/Decoder.i"
-	@echo "... src/Decoder.s"
 	@echo "... src/Streamer.o"
 	@echo "... src/Streamer.i"
 	@echo "... src/Streamer.s"
