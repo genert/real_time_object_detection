@@ -115,7 +115,7 @@ protected_main(int argc, char **argv) {
 
         std::vector<uchar> buff_bgr;
         cv::imencode(".jpg", frame, buff_bgr, params);
-        streamer.publish("/stream.mjpg", std::string(buff_bgr.begin(), buff_bgr.end()));
+        streamer.publish("/", std::string(buff_bgr.begin(), buff_bgr.end()));
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
