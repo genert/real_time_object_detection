@@ -2,18 +2,6 @@
 
 ## Install dependencies
 
-### MacOS
-
-> Tested out on M1 (ARM) only. Might work on Intel (amd64) as well.
-
-```bash
-brew tap denji/nginx
-brew install opencv cmake ffmpeg@4
-brew install nginx-full --with-rtmp-module
-```
-
-### Linux
-
 ```bash
 git clone https://github.com/nadjieb/cpp-mjpeg-streamer.git
 cd cpp-mjpeg-streamer
@@ -26,29 +14,35 @@ cd args
 sudo make install
 ```
 
+### MacOS specific
+
+> Tested out on M1 (ARM) only. Might work on Intel (amd64) as well.
+
+```bash
+brew install opencv cmake ffmpeg@4
+```
+
+### Linux specific
+
+Install OpenCV by following the GoCV guide - https://gocv.io/getting-started/linux/
+
+
 ## Run the C++ program
 
 ```bash
-sudo ufw allow 1935/tcp
-sudo ufw allow 8088/tcp
-sudo mkdir -p /var/www/html/stream
-
-
 git clone https://github.com/genert/real_time_object_detection
 cd real_time_object_detection
 mkdir build
 cd build
 cmake ..
 make
-./receiver --device_id 0
-open http://localhost:8080/stream.mjpg
+./receiver --device_id 0 --d --port 35675
+open http://localhost:35675
 ```
 
-Or using CUDA if available:
+Use CUDA for detection:
 ```bash
-./receiver cuda
-
-
+./receiver --device_id 0 --d --port 35675 --cuda
   
 ```
 
