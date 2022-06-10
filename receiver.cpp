@@ -67,6 +67,7 @@ protected_main(int argc, char **argv) {
 
     std::cout << "Starting MJPEG streamer" << std::endl;
     streamer.start(port ? args::get(port) : DEFAULT_SERVER_PORT, DEFAULT_SERVER_WORKERS);
+    std::cout << "http://localhost:" << (port ? args::get(port) : DEFAULT_SERVER_PORT) << std::endl;
 
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
