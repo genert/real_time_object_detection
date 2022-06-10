@@ -153,30 +153,6 @@ receiver.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/receiver.dir/build.make CMakeFiles/receiver.dir/receiver.cpp.s
 .PHONY : receiver.cpp.s
 
-src/Streamer.o: src/Streamer.cpp.o
-.PHONY : src/Streamer.o
-
-# target to build an object file
-src/Streamer.cpp.o:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/receiver.dir/build.make CMakeFiles/receiver.dir/src/Streamer.cpp.o
-.PHONY : src/Streamer.cpp.o
-
-src/Streamer.i: src/Streamer.cpp.i
-.PHONY : src/Streamer.i
-
-# target to preprocess a source file
-src/Streamer.cpp.i:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/receiver.dir/build.make CMakeFiles/receiver.dir/src/Streamer.cpp.i
-.PHONY : src/Streamer.cpp.i
-
-src/Streamer.s: src/Streamer.cpp.s
-.PHONY : src/Streamer.s
-
-# target to generate assembly for a file
-src/Streamer.cpp.s:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/receiver.dir/build.make CMakeFiles/receiver.dir/src/Streamer.cpp.s
-.PHONY : src/Streamer.cpp.s
-
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -189,9 +165,6 @@ help:
 	@echo "... receiver.o"
 	@echo "... receiver.i"
 	@echo "... receiver.s"
-	@echo "... src/Streamer.o"
-	@echo "... src/Streamer.i"
-	@echo "... src/Streamer.s"
 .PHONY : help
 
 

@@ -6,15 +6,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 include_directories(${OpenCV_INCLUDE_DIRS})
-include_directories("src/"
-        "src/inc/")
+include_directories("src/")
 
 file(GLOB real_time_object_detection_src
         "src/Loader.hpp"
         "src/Detect.hpp"
-        "src/Streamer.hpp"
-        "src/Streamer.cpp"
-        "src/Queue.hpp"
         "receiver.cpp"
         )
 add_executable(receiver ${real_time_object_detection_src})
