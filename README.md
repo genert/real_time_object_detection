@@ -2,9 +2,17 @@
 
 ## Install dependencies
 
+### MacOS
+
+> Tested out on M1 (ARM) only. Might work on Intel (amd64) as well.
+
 ```bash
-brew install opencv cmake ffmpeg
+brew tap denji/nginx
+brew install opencv cmake ffmpeg@4
+brew install nginx-full --with-rtmp-module
 ```
+
+### Linux
 
 ```bash
 git clone https://github.com/nadjieb/cpp-mjpeg-streamer.git
@@ -21,6 +29,11 @@ sudo make install
 ## Run the C++ program
 
 ```bash
+sudo ufw allow 1935/tcp
+sudo ufw allow 8088/tcp
+sudo mkdir -p /var/www/html/stream
+
+
 git clone https://github.com/genert/real_time_object_detection
 cd real_time_object_detection
 mkdir build

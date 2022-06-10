@@ -19,7 +19,7 @@ void load_net(cv::dnn::Net &net, bool useGPU) {
     auto result = cv::dnn::readNet("../config/yolov5s.onnx");
 
     if (useGPU) {
-        std::cout << "Attempty to use GPU\n";
+        std::cout << "Attempting to use GPU\n";
         result.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
         result.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA_FP16);
         net = result;
