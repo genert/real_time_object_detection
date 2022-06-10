@@ -1,4 +1,5 @@
 #include "Decoder.hpp"
+#include <iostream>
 
 Decoder::Decoder() {
 
@@ -108,6 +109,7 @@ int Decoder::H264_2_RGB(const unsigned char *input_buf, ssize_t frame_size) {
     sws_scale(img_convert_ctx, pFrame->data, pFrame->linesize,
               0, 0 - pCodecCtx->width, pFrameRGB->data, pFrameRGB->linesize);
 
+    std::cout << "We got image" << std::endl;
     free(buffer);
     return 0;
 }

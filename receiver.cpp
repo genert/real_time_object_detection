@@ -117,10 +117,8 @@ int main(int argc, char *argv[]) {
         int receive_length = recvfrom(fd, (void *) receive_buffer, buffer_size,
                                       0, (struct sockaddr *) &remote_address, &addrlen);
         if (receive_length > 0) {
-            std::cout << "Received data" << std::endl;
+            decoder.H264_2_RGB(receive_buffer, buffer_size);
         }
-
-        std::cout << receive_buffer << std::endl;
 
         process_frame(read_frame, proc_frame);
         stream_frame(streamer, proc_frame, frame_time.count() * streamer.inv_stream_timebase);
