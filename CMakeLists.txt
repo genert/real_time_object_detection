@@ -4,13 +4,19 @@ cmake_minimum_required(VERSION 3.6 FATAL_ERROR)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(Boost_USE_STATIC_LIBS OFF)
+set(Boost_USE_MULTITHREADED ON)
+set(Boost_USE_STATIC_RUNTIME OFF)
 
 include_directories(${OpenCV_INCLUDE_DIRS})
+include_directories(${Boost_INCLUDE_DIRS})
 include_directories("src/")
 
 file(GLOB real_time_object_detection_src
         "src/Loader.hpp"
         "src/Detect.hpp"
+        "src/Receiver.hpp"
+        "src/Receiver.cpp"
         "receiver.cpp"
         )
 add_executable(receiver ${real_time_object_detection_src})
@@ -32,6 +38,7 @@ find_library(SWSCALE_LIBRARY swscale)
 
 find_package(OpenCV REQUIRED)
 find_package(nadjieb_mjpeg_streamer REQUIRED)
+find_package(Boost REQUIRED)
 
 target_include_directories(receiver PRIVATE ${AVCODEC_INCLUDE_DIR} ${AVFORMAT_INCLUDE_DIR} ${AVUTIL_INCLUDE_DIR} ${AVDEVICE_INCLUDE_DIR} ${SWSCALE_INCLUDE_DIR})
 target_link_libraries(receiver

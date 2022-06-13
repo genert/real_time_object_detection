@@ -1,26 +1,28 @@
 #include "src/Loader.hpp"
 #include "src/Detect.hpp"
+#include "src/Receiver.hpp"
 
-#include <string>
 #include <opencv2/opencv.hpp>
 #include <nadjieb/mjpeg_streamer.hpp>
-#include <cstdio>
 #include <chrono>
 #include <args.hxx>
+#include <thread>
+#include <iostream>
+
 
 #define DEFAULT_SERVER_PORT 8080
 #define DEFAULT_SERVER_WORKERS 1
 
 using MJPEGStreamer = nadjieb::MJPEGStreamer;
+using time_point = std::chrono::high_resolution_clock::time_point;
+using high_resolution_clock = std::chrono::high_resolution_clock;
+
 const std::vector<cv::Scalar> colors = {
         cv::Scalar(255, 255, 0),
         cv::Scalar(0, 255, 0),
         cv::Scalar(0, 255, 255),
         cv::Scalar(255, 0, 0),
 };
-
-using time_point = std::chrono::high_resolution_clock::time_point;
-using high_resolution_clock = std::chrono::high_resolution_clock;
 
 int
 protected_main(int argc, char **argv) {
@@ -30,6 +32,7 @@ protected_main(int argc, char **argv) {
     args::Flag enableDetection(parser, "Enable detection", "Enable Yolo v5 model object detection",
                                {"d", "enable_detection"});
     args::Flag cuda(parser, "cuda", "Enable cuda", {'c', "cuda"});
+    args::ValueFlag<std::string> deviceAddress(parser, "Device address", "The address of the camera device", {'a', "device_address"});
     args::ValueFlag<int> device_id(parser, "Device ID", "Use device ID for video stream", {"d", "device_id"});
 
     try {
@@ -47,27 +50,39 @@ protected_main(int argc, char **argv) {
         return 1;
     }
 
-    auto video_capture = cv::VideoCapture(device_id ? args::get(device_id) : 0);
+    std::cout << "Starting to listen for video capture" << std::endl;
+
+    cv::VideoCapture video_capture;
+    if (deviceAddress) {
+        video_capture = cv::VideoCapture(args::get(deviceAddress), cv::CAP_FFMPEG);
+    } else {
+        video_capture = cv::VideoCapture(device_id ? args::get(device_id) : 0);
+    }
+
     if (!video_capture.isOpened()) {
-        fprintf(stderr, "could not open video %d\n", device_id ? args::get(device_id) : 0);
+        fprintf(stderr, "could not open video\n");
         video_capture.release();
         return 1;
     }
 
-    // Load model
+    // Load Darknet model
     cv::dnn::Net net;
-    load_net(net, cuda);
     std::vector<std::string> class_list = load_class_list();
     cv::Mat frame;
-    MJPEGStreamer streamer;
-    auto start = std::chrono::high_resolution_clock::now();
     int frame_count = 0;
     float fps = -1;
-    std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 90};
+    auto start = std::chrono::high_resolution_clock::now();
+    load_net(net, cuda);
+    std::cout << "Darknet model loaded" << std::endl;
 
+    // Start MJPEG Streamer
+    MJPEGStreamer streamer;
+    std::vector<int> params = {cv::IMWRITE_JPEG_QUALITY, 90};
     std::cout << "Starting MJPEG streamer" << std::endl;
     streamer.start(port ? args::get(port) : DEFAULT_SERVER_PORT, DEFAULT_SERVER_WORKERS);
     std::cout << "http://localhost:" << (port ? args::get(port) : DEFAULT_SERVER_PORT) << std::endl;
+
+    std::cout << "Read to accept frames from video capture" << std::endl;
 
     // Visit /shutdown or another defined target to stop the loop and graceful shutdown
     while (streamer.isRunning()) {
@@ -124,6 +139,11 @@ protected_main(int argc, char **argv) {
     std::this_thread::sleep_for(std::chrono::milliseconds(3000));
     streamer.stop();
     video_capture.release();
+
+    //Receiver receiver;
+    //std::thread r([&] { receiver.listen(boost::asio::ip::make_address("0.0.0.0"), 35001); });
+
+    //r.join();
 
     return 0;
 }
