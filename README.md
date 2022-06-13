@@ -40,6 +40,12 @@ make
 open http://localhost:35675
 ```
 
+Use UDP source instead of device for video capture:
+
+```bash
+./receiver --device_address "udp://0.0.0.0:35001" --d --port 35675
+```
+
 Use CUDA for detection:
 ```bash
 ./receiver --device_id 0 --d --port 35675 --cuda
